@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+# Builds and publishes the web app on every push to main (or manually).
+# Repo → Settings → Pages → Source must be "GitHub Actions".
+#
+# Without repository variables the site runs in browser-local DEMO mode. To go live against
+# Supabase, add Settings → Secrets and variables → Actions → Variables:
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (public anon key), VITE_ALLOW_DEMO=false,
+#   optionally VITE_AI_ENABLED=true
+# and add the Pages URL to Supabase Auth → URL Configuration (see docs/GO-LIVE.md).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - id: pages
+        uses: actions/configure-pages@v5
+      - run: npm ci
+      - name: Typecheck and unit tests
+        run: npm run typecheck && npm test
+      - name: Build
+        env:
+          VITE_BASE: ${{ steps.pages.outputs.base_path }}/
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_ALLOW_DEMO: ${{ vars.VITE_ALLOW_DEMO || 'true' }}
+          VITE_AI_ENABLED: ${{ vars.VITE_AI_ENABLED || 'false' }}
+        run: npx vite build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -64,6 +64,20 @@ supabase functions deploy ai-assist
 
 Then set `VITE_AI_ENABLED=true` in step 5. Leave AI off and the app shows an honest "not configured" message, with everything else working.
 
+## 5a. GitHub Pages (built in)
+
+`.github/workflows/pages.yml` runs on every push to `main`. It typechecks, runs the unit tests, builds with the correct `/menu-generator/` base path, and publishes to `https://camthebarman.github.io/menu-generator/`.
+
+1. In the repo, go to **Settings → Pages → Build and deployment → Source** and choose **GitHub Actions**.
+2. Push to `main`, or run the workflow manually from the Actions tab.
+3. **With no repository variables, the site runs in demo mode:** browser-local and clearly labeled.
+4. **To go live on Supabase:**
+   - Add Actions **variables** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and `VITE_ALLOW_DEMO=false`.
+   - In Supabase Auth → URL Configuration, set the Site URL to the Pages URL and add it to the redirect URLs.
+   - Re-run the workflow.
+
+Pages can't send HTTP headers, so the build embeds a Content-Security-Policy `<meta>` tag. That tag can't express `frame-ancestors`, HSTS is provided by github.io, and `public/_headers` is ignored there. If you need frame-blocking headers, use one of the hosts below.
+
 ## 5. Deploy the web app (you)
 
 Connect this GitHub repo to your host. Build command: `npm run build`. Output directory: `dist`. Node 22.
