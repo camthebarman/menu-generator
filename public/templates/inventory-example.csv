@@ -1,0 +1,7 @@
+ingredient,form,quantity,unit,package_size,package_unit,pool,storage,location,received_at,opened_on,quality_date,sell_by,use_by,expiration,operational_discard,hard_discard,label_wording,date_verified,cost,cost_per_qty,cost_unit,supplier,lot_ref,brand,status,notes
+Chicken thigh (boneless),raw,5,kg,,,food,refrigerated,Walk-in shelf 2,2026-10-19,,,,2026-10-22,,,,USE BY,yes,48.50,5,kg,Valley Poultry,CHK-0501,,available,
+London dry gin,raw,6,bottle,750,ml,bar,dry,Back bar,2026-10-19,,,,,,,,,yes,132,6,bottle,Coastal Wine & Spirits,GIN-77,,available,Case of 6
+Lime,raw,48,each,,,shared,refrigerated,Walk-in,2026-10-19,,,,,,2026-10-28,,,yes,14.40,48,each,Green Produce,LIM-1019,,available,House discard date from produce SOP
+Heavy cream 36%,raw,unknown,ml,,,shared,refrigerated,Walk-in,2026-10-15,2026-10-18,,,2026-10-24,,,,USE BY,yes,,,,,CRM-OPEN-2,,available,Opened carton; amount not counted
+Parmesan (aged),raw,1,kg,,,food,refrigerated,Cheese drawer,2026-09-01,,2026-10-30,,,,,,BEST IF USED BY,yes,28,1,kg,,PARM-3,,available,
+Granulated sugar,raw,25,lb,,,shared,dry,Dry store,2026-10-01,,,,,,,,,,,,,,SUG-25,,available,No label date (shelf-stable)

@@ -1,0 +1,5 @@
+workspace,name,recipe,expected_portions,sale_price
+food,Smash burger,Smash burger,30,16
+food,Crispy chicken thighs,Crispy chicken thighs,12,24
+bar,House daiquiri,Daiquiri,15,13
+bar,Seasonal sour,,10,14

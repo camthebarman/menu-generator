@@ -1,0 +1,35 @@
+{
+  "recipes": [
+    {
+      "name": "Charred scallion dressing",
+      "workspaces": ["food"],
+      "category": "sauce",
+      "servings": 12,
+      "yield": { "quantity": 360, "unit": "ml" },
+      "ingredients": [
+        { "name": "Scallion", "quantity": 80, "unit": "g" },
+        { "name": "Neutral oil (canola)", "quantity": 200, "unit": "ml" },
+        { "name": "Soy sauce", "quantity": 40, "unit": "ml" },
+        { "name": "Lime juice (fresh)", "quantity": 40, "unit": "ml", "form": "prepared" },
+        { "name": "Kosher salt", "quantity": 3, "unit": "g" }
+      ],
+      "method": ["Char scallions hard on a grill.", "Blend with remaining ingredients until smooth."],
+      "equipment": ["grill", "blender"],
+      "totalMinutes": 15,
+      "source": "Your kitchen binder, p. 12",
+      "license": "House recipe"
+    },
+    {
+      "name": "Menu description only (example)",
+      "workspaces": ["food"],
+      "category": "special",
+      "servings": 4,
+      "ingredients": [
+        { "name": "Chicken thigh (boneless)", "quantity": null, "unit": "g" },
+        { "name": "gochujang", "quantity": null, "unit": "g" }
+      ],
+      "method": ["Glazed chicken with gochujang."],
+      "source": "Competitor menu text — quantities unknown; must be confirmed"
+    }
+  ]
+}

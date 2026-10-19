@@ -1,0 +1,21 @@
+# Minimal Supabase CLI config for local development (`supabase start`).
+project_id = "table-zero-menu-lab"
+
+[api]
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
+major_version = 16
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+site_url = "http://localhost:5173"
+enable_signup = true
+
+[functions.ai-assist]
+verify_jwt = true

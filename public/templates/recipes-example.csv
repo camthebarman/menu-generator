@@ -1,0 +1,5 @@
+recipe_name,workspaces,category,servings,yield_qty,yield_unit,ingredient,quantity,unit,form,optional,method,equipment,total_minutes,source,tags
+Honey-ginger soda,bar,zero_proof,1,1,serving,Honey syrup,0.75,fl_oz,prepared,,Build over ice|Top with soda,,2,House binder,zero-proof
+Honey-ginger soda,bar,zero_proof,1,1,serving,Ginger syrup,0.5,fl_oz,prepared,,,,,House binder,
+Honey-ginger soda,bar,zero_proof,1,1,serving,Soda water,4,fl_oz,raw,,,,,House binder,
+Honey-ginger soda,bar,zero_proof,1,1,serving,Lime,1,wedge,raw,yes,,,,House binder,
