@@ -20,8 +20,9 @@ export LIVE_JWT_SECRET="test-only-jwt-secret-at-least-32-characters-long"
 PGRST_DB_URI="postgres://authenticator:authenticator@127.0.0.1:$PORT/postgres" PGRST_DB_SCHEMAS=public PGRST_DB_ANON_ROLE=anon \
   PGRST_JWT_SECRET="$LIVE_JWT_SECRET" PGRST_SERVER_PORT=$REST_PORT PGRST_SERVER_HOST=127.0.0.1 "$POSTGREST" >"$DIR/postgrest.log" 2>&1 & PIDS+=($!)
 node scripts/rest-proxy.mjs $PROXY_PORT "http://127.0.0.1:$REST_PORT" >"$DIR/proxy.log" 2>&1 & PIDS+=($!)
-for _ in $(seq 1 50); do curl -s "http://127.0.0.1:$REST_PORT/" >/dev/null && break; sleep 0.2; done
+for _ in $(seq 1 100); do curl -s "http://127.0.0.1:$REST_PORT/" >/dev/null && break; sleep 0.3; done
 VITE_SUPABASE_URL="http://127.0.0.1:$PROXY_PORT" VITE_SUPABASE_ANON_KEY="test-anon" VITE_ALLOW_DEMO=false npx vite build --outDir "$DIR/dist" >/dev/null
-node node_modules/vite/bin/vite.js preview --outDir "$DIR/dist" --port $APP_PORT --strictPort >"$DIR/preview.log" 2>&1 & PIDS+=($!)
-for _ in $(seq 1 50); do curl -s "http://127.0.0.1:$APP_PORT/" >/dev/null && break; sleep 0.2; done
+node node_modules/vite/bin/vite.js preview --outDir "$DIR/dist" --host 127.0.0.1 --port $APP_PORT --strictPort >"$DIR/preview.log" 2>&1 & PIDS+=($!)
+wait_for() { for _ in $(seq 1 100); do curl -sf "$1" >/dev/null && return 0; sleep 0.3; done; echo "Timed out waiting for $1" >&2; tail -20 "$DIR"/*.log >&2 || true; exit 1; }
+wait_for "http://127.0.0.1:$APP_PORT/"
 LIVE_APP_URL="http://127.0.0.1:$APP_PORT" npx playwright test --config playwright.live.config.ts
