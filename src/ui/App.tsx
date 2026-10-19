@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { canUseWorkspace } from '../domain/ops';
+import { SupabaseRepository } from '../data/live';
 import type { Workspace } from '../domain/types';
 import { cx, Spinner } from './components';
 import { Discover } from './Discover';
@@ -41,7 +42,7 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
 }
 
 export function App() {
-  const { state, workspace, setWorkspace, toasts, dismissToast, pending, cart } = useApp();
+  const { state, workspace, setWorkspace, toasts, dismissToast, pending, cart, repo, reload } = useApp();
   const [route] = useHashRoute();
   const section = route[0];
   const user = state.currentUser;
@@ -70,6 +71,12 @@ export function App() {
           <div className="ml-auto flex items-center gap-3 text-xs">
             {pending > 0 && <Spinner label="Saving…" />}
             <span className="opacity-80">{user.name} · {user.role}</span>
+            {repo instanceof SupabaseRepository && (
+              <>
+                <button className="rounded px-2 py-1 hover:bg-white/10" onClick={() => reload()}>Refresh</button>
+                <button className="rounded px-2 py-1 hover:bg-white/10" onClick={() => repo.client.auth.signOut()}>Sign out</button>
+              </>
+            )}
           </div>
         </div>
         <nav aria-label="Sections" className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-2 pb-2">

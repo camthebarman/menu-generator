@@ -94,8 +94,29 @@ export function AppProvider({ repo, demo, initial, children }: { repo: Repositor
   }, [repo, toast]);
 
   const reload = useCallback(async () => {
-    setState(await repo.load());
-  }, [repo]);
+    try {
+      setState(await repo.load());
+    } catch (e) {
+      toast('error', `Could not refresh: ${(e as Error).message}`);
+    }
+  }, [repo, toast]);
+  // Live mode: pick up teammates' changes when the tab regains focus (plans also re-validate on reserve).
+  useEffect(() => {
+    if (repo.mode !== 'live') return;
+    let last = Date.now();
+    const onFocus = () => {
+      if (Date.now() - last > 15_000) {
+        last = Date.now();
+        reload();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    const t = setInterval(() => document.visibilityState === 'visible' && reload(), 120_000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      clearInterval(t);
+    };
+  }, [repo, reload]);
 
   const [cart, setCartState] = useState<Record<Workspace, ShoppingSelection[]>>({ food: [], bar: [] });
   const setCart = useCallback((ws: Workspace, sel: ShoppingSelection[]) => setCartState((c) => ({ ...c, [ws]: sel })), []);

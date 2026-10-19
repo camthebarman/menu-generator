@@ -168,7 +168,7 @@ function QuickAdd() {
   return (
     <div className="card space-y-4 p-4">
       <Section title="Receive stock" description="Enter what the label says. Leave unknown dates or quantities blank — they stay visible as unresolved instead of being guessed.">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Ingredient">{(id) => (
             <select id={id} className="input" value={lot.ingredientId} onChange={(e) => { const i = catalog.ingredients.get(e.target.value); set({ ingredientId: e.target.value, unit: i ? (i.dimension === 'mass' ? 'g' : i.dimension === 'volume' ? 'ml' : 'each') : 'g', storage: i?.perishable ? 'refrigerated' : 'dry' }); }}>
               <option value="">Choose…</option>
@@ -212,7 +212,7 @@ function QuickAdd() {
           <Field label="Supplier">{(id) => <input id={id} className="input" value={lot.supplier ?? ''} onChange={(e) => set({ supplier: e.target.value })} />}</Field>
           <Field label="Lot / invoice ref">{(id) => <input id={id} className="input" value={lot.lotRef ?? ''} onChange={(e) => set({ lotRef: e.target.value })} />}</Field>
           <Field label="Notes" className="sm:col-span-2">{(id) => <input id={id} className="input" value={lot.notes ?? ''} onChange={(e) => set({ notes: e.target.value })} />}</Field>
-        </div>
+        </fieldset>
         {ing?.perishable && !lot.useByDate && !lot.expirationDate && !lot.operationalDiscardDate && !lot.hardDiscardDate && (
           <Notice tone="review">{ing.name} is perishable. Without a use-by or discard date the lot will be held for review rather than assigned a guessed date.</Notice>
         )}

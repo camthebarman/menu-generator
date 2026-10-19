@@ -313,7 +313,7 @@ create index audit_events_org_idx on public.audit_events(org_id, at desc);
 
 create table public.idempotency_keys (
   org_id uuid not null references public.organizations(id) on delete cascade,
-  key text not null check (length(key) between 8 and 200),
+  key text not null check (length(key) between 1 and 200),
   result jsonb,
   created_at timestamptz not null default now(),
   primary key (org_id, key)

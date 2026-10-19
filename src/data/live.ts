@@ -16,6 +16,26 @@ import type { Command, CommandArgs, CommandResult, Repository } from './reposito
 export interface LiveConfig {
   url: string;
   anonKey: string;
+  /** Test/integration hook: supply a JWT directly instead of Supabase Auth sessions. */
+  accessToken?: () => Promise<string | null>;
+}
+
+export interface MemberRow {
+  userId: string;
+  displayName: string | null;
+  role: 'owner' | 'manager' | 'staff';
+  workspaces: ('food' | 'bar')[];
+}
+
+export interface InviteRow {
+  id: string;
+  role: 'manager' | 'staff';
+  workspaces: ('food' | 'bar')[];
+  note: string | null;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+  revoked: boolean;
 }
 
 export function liveConfigFromEnv(): LiveConfig | null {
@@ -48,7 +68,9 @@ export class SupabaseRepository implements Repository {
   orgId: string | null = null;
 
   constructor(cfg: LiveConfig) {
-    this.client = createClient(cfg.url, cfg.anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
+    this.client = cfg.accessToken
+      ? createClient(cfg.url, cfg.anonKey, { accessToken: cfg.accessToken })
+      : createClient(cfg.url, cfg.anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
   }
 
   async memberships(): Promise<{ org_id: string; role: string; workspaces: string[]; organizations: { name: string } | null }[]> {
@@ -72,11 +94,43 @@ export class SupabaseRepository implements Repository {
     return (data ?? []) as Row[];
   }
 
+  async userId(): Promise<string> {
+    const me = (await this.rpc('whoami', {})) as { userId: string | null };
+    if (!me.userId) throw new ops.OpError('unauthenticated', 'Sign in required');
+    return me.userId;
+  }
+
+  async listMembers(): Promise<MemberRow[]> {
+    const rows = await this.select('memberships', true);
+    return rows.map((r) => ({ userId: String(r.user_id), displayName: (r.display_name as string) ?? null, role: r.role as MemberRow['role'], workspaces: r.workspaces as MemberRow['workspaces'] }));
+  }
+
+  async listInvites(): Promise<InviteRow[]> {
+    const rows = await this.select('org_invites', true);
+    return rows.map((r) => ({ id: String(r.id), role: r.role as InviteRow['role'], workspaces: r.workspaces as InviteRow['workspaces'], note: (r.note as string) ?? null, createdAt: String(r.created_at), expiresAt: String(r.expires_at), usedAt: (r.used_at as string) ?? null, revoked: !!r.revoked }));
+  }
+
+  async createInvite(role: 'manager' | 'staff', workspaces: ('food' | 'bar')[], note: string, days = 7): Promise<string> {
+    const r = (await this.rpc('create_invite', { p_org: this.orgId, p_role: role, p_workspaces: workspaces, p_note: note || null, p_days: days })) as { code: string };
+    return r.code;
+  }
+
+  async revokeInvite(id: string): Promise<void> {
+    await this.rpc('revoke_invite', { p_org: this.orgId, p_invite: id });
+  }
+
+  async updateMember(userId: string, role: MemberRow['role'], workspaces: MemberRow['workspaces'], remove = false): Promise<void> {
+    await this.rpc('update_member', { p_org: this.orgId, p_user: userId, p_role: role, p_workspaces: workspaces, p_remove: remove });
+  }
+
+  async acceptInvite(code: string, displayName: string): Promise<string> {
+    return (await this.rpc('accept_invite', { p_code: code, p_display_name: displayName })) as string;
+  }
+
   async load(): Promise<AppState> {
     if (!this.orgId) throw new ops.OpError('no_org', 'Choose an organization first');
     const org = this.orgId;
-    const { data: userData } = await this.client.auth.getUser();
-    const uid = userData.user?.id;
+    const uid = await this.userId();
     const [orgRows, memRows, ing, staples, lots, movements, recipes, versions, menu, prot, plans, res, preps, shops, imps] = await Promise.all([
       this.client.from('organizations').select('*').eq('id', org).then(({ data, error }) => { if (error) mapError(error); return (data ?? []) as Row[]; }),
       this.select('memberships', true),
@@ -212,7 +266,8 @@ export class SupabaseRepository implements Repository {
       case 'receiveLot': {
         const out = ops.receiveLot(s, ctx, a[0] as ops.LotInput);
         const lot = out.state.lots[out.state.lots.length - 1];
-        result = await this.rpc('receive_lot', { p_org: org, p_lot: this.lotPayload(s, lot), p_idem: (a[1] as string) ?? `recv-${lot.id}` });
+        const res = (await this.rpc('receive_lot', { p_org: org, p_lot: this.lotPayload(s, lot), p_idem: (a[1] as string) ?? `recv-${lot.id}` })) as { lotId: string; replayed?: boolean };
+        result = { lotId: res.lotId, quantityResolved: out.result.quantityResolved };
         break;
       }
       case 'updateLotDetails':
@@ -348,16 +403,15 @@ export class SupabaseRepository implements Repository {
       case 'commitInventoryImport': {
         const [rows, fileName, text, includeDup] = a as Parameters<typeof import('../domain/imports').commitInventoryImport> extends [unknown, unknown, ...infer R] ? R : never;
         const hash = contentHash(text);
-        const ids: string[] = [];
-        for (const r of rows) {
-          if (!r.input || (r.status === 'duplicate' && !includeDup)) continue;
-          const out = ops.receiveLot(s, { ...ctx, source: 'import' }, r.input);
-          const lot = out.state.lots[out.state.lots.length - 1];
-          const res = (await this.rpc('receive_lot', { p_org: org, p_lot: this.lotPayload(s, lot), p_idem: `import-${hash}-${r.index}`, p_source: 'import' })) as { lotId: string };
-          ids.push(res.lotId);
-        }
-        await this.rpc('register_import', { p_org: org, p_kind: 'inventory', p_file: fileName, p_hash: hash, p_rows: rows.length, p_ids: ids });
-        result = { importId: hash, created: ids.length };
+        if (rows.some((r) => r.status === 'error' || r.status === 'needs_mapping')) throw new ops.OpError('invalid', 'Fix errors and ingredient mappings before commit');
+        const lots = rows
+          .filter((r) => r.input && (r.status !== 'duplicate' || includeDup))
+          .map((r) => {
+            const out = ops.receiveLot(s, { ...ctx, source: 'import' }, r.input!);
+            return this.lotPayload(s, out.state.lots[out.state.lots.length - 1]);
+          });
+        // One transaction server-side: all rows land or none do; the same file is a no-op.
+        result = await this.rpc('import_lots', { p_org: org, p_file: fileName, p_hash: hash, p_lots: lots });
         break;
       }
       case 'commitRecipeImport': {

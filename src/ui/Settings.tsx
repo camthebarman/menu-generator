@@ -5,6 +5,7 @@ import type { DatePolicy } from '../domain/types';
 import { aiAvailability } from '../data/ai';
 import { DEMO_USERS } from '../data/demo';
 import { Button, Field, Notice, Section, Toggle } from './components';
+import { Team } from './Team';
 import { useApp } from './store';
 
 export function Settings() {
@@ -41,6 +42,8 @@ export function Settings() {
         </Section>
       )}
 
+      <Team />
+
       <Section title="Organization & date policy" description="Eligibility is evaluated for the planned service date in this timezone. Configure policies to match your jurisdiction and verified procedures.">
         {!mgr && <Notice>Only managers can change these settings.</Notice>}
         <Notice>{state.org.policy.jurisdictionNote} This tool does not determine regulatory compliance; see the FDA Food Code and USDA date-labeling guidance referenced in the documentation.</Notice>
@@ -67,7 +70,7 @@ export function Settings() {
               <div key={i.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
                 <span className="font-medium">{i.name}</span>
                 {c ? <span className="text-ink-mute">Confirmed by {c.confirmedBy}{c.assumeZeroCost ? ' · cost treated as zero' : ''}</span> : <span className="text-ink-mute">Not assumed — must be in inventory</span>}
-                {mgr && <Button size="sm" className="ml-auto" onClick={() => run('setStaple', i.id, !c, true)}>{c ? 'Stop assuming' : 'Assume on hand'}</Button>}
+                {mgr && <Button size="sm" className="ml-auto" aria-label={`${c ? 'Stop assuming' : 'Assume'} ${i.name} on hand`} onClick={() => run('setStaple', i.id, !c, true)}>{c ? 'Stop assuming' : 'Assume on hand'}</Button>}
               </div>
             );
           })}

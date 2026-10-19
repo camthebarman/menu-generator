@@ -10,12 +10,17 @@ port = 54322
 major_version = 16
 
 [db.seed]
-enabled = true
-sql_paths = ["./seed.sql"]
+# Starter content ships as a migration (20261020000005_starter_content.sql), so no seed file is needed.
+enabled = false
 
 [auth]
 site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173", "http://localhost:4173"]
 enable_signup = true
+minimum_password_length = 8
+
+[auth.email]
+enable_confirmations = true
 
 [functions.ai-assist]
 verify_jwt = true

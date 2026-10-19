@@ -44,7 +44,7 @@ create or replace function app.idem_get(p_org uuid, p_key text) returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v jsonb;
 begin
-  if p_key is null then perform app.fail('invalid', 'idempotency key required'); end if;
+  if p_key is null or length(p_key) = 0 then perform app.fail('invalid', 'idempotency key required'); end if;
   perform pg_advisory_xact_lock(hashtextextended(p_org::text || ':' || p_key, 0));
   select result into v from public.idempotency_keys where org_id = p_org and key = p_key;
   if found then return coalesce(v, 'null'::jsonb) || jsonb_build_object('replayed', true); end if;

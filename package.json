@@ -13,7 +13,8 @@
     "test:db": "bash scripts/test-db.sh",
     "test:e2e": "playwright test",
     "check": "npm run typecheck && npm test && npm run test:db && npm run build && npm run test:e2e",
-    "gen:seed": "tsx scripts/gen-seed-sql.ts"
+    "gen:seed": "tsx scripts/gen-seed-sql.ts",
+    "test:e2e:live": "bash scripts/test-live-e2e.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

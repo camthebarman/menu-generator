@@ -73,15 +73,15 @@ beforeAll(async () => {
   try {
     await c.query(readFileSync(join(root, 'tests/db/supabase-shim.sql'), 'utf8'));
     for (const f of readdirSync(join(root, 'supabase/migrations')).sort()) await c.query(readFileSync(join(root, 'supabase/migrations', f), 'utf8'));
-    await c.query(readFileSync(join(root, 'supabase/seed.sql'), 'utf8'));
   } finally {
     c.release();
   }
   orgA = (await one<{ create_organization: string }>(U.ownerA, `select public.create_organization('Org A', 'America/New_York', 'Alex (owner)')`)).create_organization;
   orgB = (await one<{ create_organization: string }>(U.ownerB, `select public.create_organization('Org B', 'America/New_York', 'Blair (owner)')`)).create_organization;
-  await as(U.ownerA, async (c) => {
-    await c.query(`insert into public.memberships(org_id, user_id, role, workspaces, display_name) values ($1, $2, 'staff', '{bar}', 'Bar staff'), ($1, $3, 'staff', '{food}', 'Food staff')`, [orgA, U.barA, U.foodA]);
-  });
+  const inviteBar = await one<{ create_invite: { code: string } }>(U.ownerA, `select public.create_invite($1, 'staff', '{bar}', 'bar team')`, [orgA]);
+  const inviteFood = await one<{ create_invite: { code: string } }>(U.ownerA, `select public.create_invite($1, 'staff', '{food}', 'kitchen')`, [orgA]);
+  await one(U.barA, 'select public.accept_invite($1, $2)', [inviteBar.create_invite.code, 'Bar staff']);
+  await one(U.foodA, 'select public.accept_invite($1, $2)', [inviteFood.create_invite.code.toLowerCase(), 'Food staff']);
 });
 
 afterAll(async () => {
@@ -143,7 +143,7 @@ describe('tenant isolation', () => {
     // Version smuggled into another org's recipe
     await expect(rows(U.ownerB, `insert into public.recipe_versions(id, recipe_id, org_id, version, lines, yield, servings) values ('v_evil', $1, $2, 2, '[]', '{}', 1)`, [privateRecipe, orgB])).rejects.toThrow(/org must match|row-level/);
     // Self-granting membership into another org
-    await expect(rows(U.ownerB, `insert into public.memberships(org_id, user_id, role) values ($1, $2, 'owner')`, [orgA, U.ownerB])).rejects.toThrow(/row-level security/);
+    await expect(rows(U.ownerB, `insert into public.memberships(org_id, user_id, role) values ($1, $2, 'owner')`, [orgA, U.ownerB])).rejects.toThrow(/permission denied/);
     // Updates silently affect zero rows under RLS
     const upd = await as(U.ownerB, (c) => c.query(`update public.organizations set name = 'pwned' where id = $1`, [orgA]));
     expect(upd.rowCount).toBe(0);
@@ -313,5 +313,47 @@ describe('usage, prep, and idempotency', () => {
     });
     const lot = await receive(U.ownerA, orgA, { ingredientId: 'sugar', form: 'raw', quantity: 100, enteredUnit: 'g', pool: 'shared', storage: 'dry', lotRef: 'SUG-AI' });
     await expect(one(U.barA, 'select public.reserve_plan($1, $2, $3, null, $4)', [orgA, 'plan_ai', JSON.stringify([{ lotId: lot, ingredientId: 'sugar', form: 'raw', quantity: 10 }]), key('r')])).rejects.toThrow(/AI-drafted/);
+  });
+});
+
+describe('team management and atomic import', () => {
+  const NEW = '00000000-0000-4000-8000-0000000000c1';
+  const MGR = '00000000-0000-4000-8000-0000000000c2';
+
+  it('invite codes are single-use, hashed at rest, and role-limited', async () => {
+    const inv = (await one<{ create_invite: { code: string; inviteId: string } }>(U.ownerA, `select public.create_invite($1, 'manager', '{food,bar}', 'new sous')`, [orgA])).create_invite;
+    const stored = await one<{ code_hash: string }>(U.ownerA, 'select code_hash from public.org_invites where id = $1', [inv.inviteId]);
+    expect(stored.code_hash).not.toContain(inv.code);
+    await one(MGR, 'select public.accept_invite($1, $2)', [inv.code, 'Sous chef']);
+    await expect(one(NEW, 'select public.accept_invite($1, $2)', [inv.code, 'Again'])).rejects.toThrow(/invalid, used, or expired/);
+    // managers cannot mint manager invites or promote anyone; staff cannot invite at all
+    await expect(one(MGR, `select public.create_invite($1, 'manager', '{food}')`, [orgA])).rejects.toThrow(/only owners/);
+    await expect(one(U.barA, `select public.create_invite($1, 'staff', '{bar}')`, [orgA])).rejects.toThrow(/only managers/);
+    await expect(one(MGR, `select public.update_member($1, $2, 'owner', '{food,bar}')`, [orgA, U.barA])).rejects.toThrow(/only owners/);
+    // managers can change staff workspaces
+    await one(MGR, `select public.update_member($1, $2, 'staff', '{bar,food}')`, [orgA, U.barA]);
+    expect((await one<{ workspaces: string[] }>(U.ownerA, 'select workspaces from public.memberships where org_id = $1 and user_id = $2', [orgA, U.barA])).workspaces).toEqual(['bar', 'food']);
+    await one(MGR, `select public.update_member($1, $2, 'staff', '{bar}')`, [orgA, U.barA]);
+    await expect(one(U.ownerA, `select public.update_member($1, $2, 'staff', '{food}', true)`, [orgA, U.ownerA])).rejects.toThrow(/at least one owner/);
+    const revoked = (await one<{ create_invite: { code: string; inviteId: string } }>(U.ownerA, `select public.create_invite($1, 'staff', '{food}')`, [orgA])).create_invite;
+    await one(U.ownerA, 'select public.revoke_invite($1, $2)', [orgA, revoked.inviteId]);
+    await expect(one(NEW, 'select public.accept_invite($1, $2)', [revoked.code, 'x'])).rejects.toThrow(/invalid/);
+    // invite rows are visible only to managers
+    expect(await rows(U.barA, 'select * from public.org_invites')).toEqual([]);
+    expect(await rows(U.ownerB, 'select * from public.org_invites where org_id = $1', [orgA])).toEqual([]);
+  });
+
+  it('import_lots is all-or-nothing and idempotent per file hash', async () => {
+    const good = { ingredientId: 'rice', form: 'raw', quantity: 1000, enteredUnit: 'g', pool: 'food', storage: 'dry', lotRef: 'IMP-1' };
+    const bad = { ...good, lotRef: 'IMP-BAD', ingredientId: 'no_such_ingredient' };
+    await expect(one(U.ownerA, 'select public.import_lots($1, $2, $3, $4)', [orgA, 'a.csv', 'hash-bad', JSON.stringify([good, bad])])).rejects.toThrow();
+    expect(await rows(U.ownerA, `select * from public.lots where lot_ref = 'IMP-1'`)).toEqual([]);
+    const r1 = await one<{ import_lots: { created: number } }>(U.ownerA, 'select public.import_lots($1, $2, $3, $4)', [orgA, 'a.csv', 'hash-ok', JSON.stringify([good, { ...good, lotRef: 'IMP-2' }])]);
+    expect(r1.import_lots.created).toBe(2);
+    const r2 = await one<{ import_lots: { replayed: boolean } }>(U.ownerA, 'select public.import_lots($1, $2, $3, $4)', [orgA, 'a.csv', 'hash-ok', JSON.stringify([good])]);
+    expect(r2.import_lots.replayed).toBe(true);
+    expect(await rows(U.ownerA, `select * from public.lots where lot_ref in ('IMP-1','IMP-2')`)).toHaveLength(2);
+    // staff cannot import into pools they cannot access
+    await expect(one(U.barA, 'select public.import_lots($1, $2, $3, $4)', [orgA, 'b.csv', 'hash-staff', JSON.stringify([good])])).rejects.toThrow(/forbidden/);
   });
 });
